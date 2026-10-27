@@ -47,6 +47,8 @@ export const ReferencesView: React.FC = () => {
   const [editingDoc, setEditingDoc] = useState<Partial<ReferenceDoc> | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Detail preview modal state
   const [previewDoc, setPreviewDoc] = useState<ReferenceDoc | null>(null);
@@ -137,12 +139,14 @@ export const ReferencesView: React.FC = () => {
       active: true,
     });
     setValidationErrors({});
+    setSubmitError(null);
     setIsModalOpen(true);
   };
 
   const handleOpenEdit = (doc: ReferenceDoc) => {
     setEditingDoc({ ...doc });
     setValidationErrors({});
+    setSubmitError(null);
     setIsModalOpen(true);
   };
 
@@ -163,24 +167,38 @@ export const ReferencesView: React.FC = () => {
 
   const handleSaveModal = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
     if (!validateForm()) return;
 
     if (!editingDoc || !editingDoc.title || !editingDoc.text) return;
 
-    await saveReferenceDoc({
-      ...editingDoc,
-      title: editingDoc.title.trim(),
-      text: editingDoc.text.trim(),
-      document_type: editingDoc.document_type || 'peraturan',
-      document_number: editingDoc.document_number?.trim() || undefined,
-      year: editingDoc.year?.trim() || undefined,
-      section: editingDoc.section?.trim() || undefined,
-      summary: editingDoc.summary?.trim() || undefined,
-      source_url: editingDoc.source_url?.trim() || undefined,
-    });
+    setIsSubmitting(true);
+    try {
+      const ok = await saveReferenceDoc({
+        ...editingDoc,
+        title: editingDoc.title.trim(),
+        text: editingDoc.text.trim(),
+        document_type: editingDoc.document_type || 'peraturan',
+        document_number: editingDoc.document_number?.trim() || undefined,
+        year: editingDoc.year?.trim() || undefined,
+        section: editingDoc.section?.trim() || undefined,
+        summary: editingDoc.summary?.trim() || undefined,
+        source_url: editingDoc.source_url?.trim() || undefined,
+      });
 
-    setIsModalOpen(false);
-    setEditingDoc(null);
+      if (ok) {
+        // Berhasil disimpan: tutup modal dan arahkan kembali ke daftar referensi
+        setIsModalOpen(false);
+        setEditingDoc(null);
+      } else {
+        // Gagal disimpan: jangan tutup modal atau hapus input pengguna
+        setSubmitError('Penyimpanan dokumen tidak dapat diproses oleh sistem. Silakan periksa kembali isian Anda.');
+      }
+    } catch (err: any) {
+      setSubmitError(err?.message || 'Terjadi kesalahan sistem saat menyimpan dokumen referensi.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const confirmDelete = async () => {
@@ -585,6 +603,13 @@ export const ReferencesView: React.FC = () => {
             </div>
 
             <form onSubmit={handleSaveModal} className="space-y-4 text-xs">
+              {submitError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{submitError}</span>
+                </div>
+              )}
+
               {/* Judul Dokumen */}
               <div>
                 <label className="block font-semibold text-slate-800 mb-1">
@@ -755,16 +780,18 @@ export const ReferencesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 cursor-pointer"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <Save className="w-4 h-4" />
-                  <span>Simpan Dokumen</span>
+                  <span>{isSubmitting ? 'Menyimpan...' : 'Simpan Dokumen'}</span>
                 </button>
               </div>
             </form>

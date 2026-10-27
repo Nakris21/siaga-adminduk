@@ -38,6 +38,7 @@ interface AppContextType {
   isLoading: boolean;
   toast: { text: string; type: 'success' | 'info' | 'error' } | null;
   showToast: (text: string, type?: 'success' | 'info' | 'error') => void;
+  hideToast: () => void;
   checkTicketNumber: string;
   setCheckTicketNumber: (ticket: string) => void;
   getPublicComplaintByTicket: (ticket: string) => Complaint | null;
@@ -86,6 +87,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [selectedComplaintId, setSelectedComplaintId] = useState<string | null>(null);
   const [isAnalyzingComplaintId, setIsAnalyzingComplaintId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const toastTimerRef = React.useRef<any>(null);
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
@@ -96,10 +98,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     },
   ]);
 
+  const hideToast = () => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+    setToast(null);
+  };
+
   const showToast = (text: string, type: 'success' | 'info' | 'error' = 'info') => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
     setToast({ text, type });
-    setTimeout(() => {
+    toastTimerRef.current = setTimeout(() => {
       setToast(null);
+      toastTimerRef.current = null;
     }, 4500);
   };
 
@@ -221,11 +235,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       const saved = await appDataStore.saveComplaint(newComplaint);
       setComplaints((prev) => [saved, ...prev]);
-      showToast(`Pengaduan berhasil diajukan dengan nomor tiket ${ticketNumber}`, 'success');
+      showToast('Data berhasil disimpan.', 'success');
 
       return { success: true, ticketNumber };
     } catch (err) {
       console.error('Failed to submit complaint:', err);
+      showToast('Terjadi kesalahan sistem saat menyimpan pengaduan. Silakan coba kembali.', 'error');
       return {
         success: false,
         error: 'Terjadi kesalahan sistem saat menyimpan pengaduan. Silakan coba kembali.',
@@ -312,7 +327,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       const updated = await appDataStore.updateComplaint(id, updates);
       setComplaints((prev) => prev.map((c) => (c.id === id ? updated : c)));
-      showToast('Penilaian keparahan & dampak berhasil diverifikasi petugas.', 'success');
+      showToast('Data berhasil diperbarui.', 'success');
       return true;
     } catch (err) {
       console.error('Failed to adjust assessment:', err);
@@ -333,7 +348,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
       const updated = await appDataStore.updateComplaint(id, updates);
       setComplaints((prev) => prev.map((c) => (c.id === id ? updated : c)));
-      showToast('Status pengaduan dan tanggapan berhasil diperbarui.', 'success');
+      showToast('Data berhasil diperbarui.', 'success');
       return true;
     } catch (err) {
       console.error('Failed to update complaint:', err);
@@ -348,10 +363,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (!target) return false;
       const updated = await appDataStore.updateReference(id, { active: !target.active });
       setReferences((prev) => prev.map((r) => (r.id === id ? updated : r)));
-      showToast(
-        `Referensi "${updated.title}" kini ${updated.active ? 'Aktif' : 'Nonaktif'}.`,
-        'info'
-      );
+      showToast('Data berhasil diperbarui.', 'success');
       return true;
     } catch (err) {
       console.error('Failed to toggle reference:', err);
@@ -367,7 +379,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (doc.id) {
         const updated = await appDataStore.updateReference(doc.id, doc);
         setReferences((prev) => prev.map((r) => (r.id === doc.id ? updated : r)));
-        showToast('Dokumen referensi berhasil diperbarui.', 'success');
+        showToast('Data berhasil diperbarui.', 'success');
       } else {
         const newDoc: ReferenceDoc = {
           id: `ref-${Date.now()}`,
@@ -383,7 +395,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         };
         const saved = await appDataStore.saveReference(newDoc);
         setReferences((prev) => [saved, ...prev]);
-        showToast('Dokumen referensi baru berhasil ditambahkan.', 'success');
+        showToast('Data berhasil disimpan.', 'success');
       }
       return true;
     } catch (err) {
@@ -496,6 +508,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         isLoading,
         toast,
         showToast,
+        hideToast,
         checkTicketNumber,
         setCheckTicketNumber,
         getPublicComplaintByTicket,

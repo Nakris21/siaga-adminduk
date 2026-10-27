@@ -58,6 +58,7 @@ export const ComplaintListView: React.FC = () => {
   const [editImpact, setEditImpact] = useState<number>(3);
   const [isSavingAssessment, setIsSavingAssessment] = useState<boolean>(false);
   const [showOverrideForm, setShowOverrideForm] = useState<boolean>(false);
+  const [responseError, setResponseError] = useState<string | null>(null);
 
   // Sync modal form when selectedComplaint changes
   React.useEffect(() => {
@@ -67,6 +68,7 @@ export const ComplaintListView: React.FC = () => {
       setEditSeverity(selectedComplaint.severity || 3);
       setEditImpact(selectedComplaint.service_impact || 3);
       setShowOverrideForm(false);
+      setResponseError(null);
     }
   }, [selectedComplaintId]);
 
@@ -88,9 +90,22 @@ export const ComplaintListView: React.FC = () => {
 
   const handleSaveResponse = async () => {
     if (!selectedComplaint) return;
+    setResponseError(null);
     setIsSavingResponse(true);
-    await updateComplaintStatus(selectedComplaint.id, targetStatus, responseText);
-    setIsSavingResponse(false);
+    try {
+      const ok = await updateComplaintStatus(selectedComplaint.id, targetStatus, responseText);
+      if (ok) {
+        // Berhasil diperbarui: tutup modal & kembali ke daftar pengaduan
+        setSelectedComplaintId(null);
+      } else {
+        // Gagal: pertahankan modal & teks tanggapan agar pengguna dapat mencoba kembali
+        setResponseError('Gagal memperbarui data pengaduan. Silakan periksa koneksi dan coba kembali.');
+      }
+    } catch (err: any) {
+      setResponseError(err?.message || 'Terjadi kesalahan saat memproses pembaruan pengaduan.');
+    } finally {
+      setIsSavingResponse(false);
+    }
   };
 
   const categories: ComplaintCategory[] = [
@@ -611,6 +626,13 @@ export const ComplaintListView: React.FC = () => {
                   </select>
                 </div>
               </div>
+
+              {responseError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{responseError}</span>
+                </div>
+              )}
 
               <textarea
                 rows={3}

@@ -55,12 +55,14 @@ export const AiAnalysisView: React.FC = () => {
   const [editImpact, setEditImpact] = useState<number>(3);
   const [editLabel, setEditLabel] = useState<string>('');
   const [isSavingAdjustment, setIsSavingAdjustment] = useState<boolean>(false);
+  const [adjustmentError, setAdjustmentError] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (inspectingComplaint) {
       setEditSeverity(inspectingComplaint.severity || 3);
       setEditImpact(inspectingComplaint.service_impact || 3);
       setEditLabel(inspectingComplaint.issue_label || '');
+      setAdjustmentError(null);
     }
   }, [inspectingComplaintId]);
 
@@ -147,9 +149,27 @@ export const AiAnalysisView: React.FC = () => {
 
   const handleSaveAdjustment = async () => {
     if (!inspectingComplaint) return;
+    setAdjustmentError(null);
     setIsSavingAdjustment(true);
-    await adjustComplaintAssessment(inspectingComplaint.id, editSeverity, editImpact, editLabel);
-    setIsSavingAdjustment(false);
+    try {
+      const ok = await adjustComplaintAssessment(
+        inspectingComplaint.id,
+        editSeverity,
+        editImpact,
+        editLabel
+      );
+      if (ok) {
+        // Berhasil diperbarui: tutup modal dan arahkan kembali ke daftar analisis
+        setInspectingComplaintId(null);
+      } else {
+        // Gagal: pertahankan modal dan input petugas
+        setAdjustmentError('Gagal memperbarui penilaian petugas. Silakan coba kembali.');
+      }
+    } catch (err: any) {
+      setAdjustmentError(err?.message || 'Terjadi kesalahan sistem saat menyimpan penilaian petugas.');
+    } finally {
+      setIsSavingAdjustment(false);
+    }
   };
 
   const categories: ComplaintCategory[] = [
@@ -670,6 +690,13 @@ export const AiAnalysisView: React.FC = () => {
                   </span>
                 )}
               </div>
+
+              {adjustmentError && (
+                <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{adjustmentError}</span>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">

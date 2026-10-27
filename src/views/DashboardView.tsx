@@ -15,6 +15,12 @@ import {
 import { generateLocalRecommendations } from '../logic/recommendations';
 import { calculateFrequencyValue } from '../logic/scoring';
 import {
+  filterComplaintsByCustomDateRange,
+  exportComplaintsToExcel,
+  exportRecommendationToDocx,
+  formatIndonesianDate,
+} from '../lib/exportService';
+import {
   Inbox,
   AlertCircle,
   Clock,
@@ -31,6 +37,13 @@ import {
   Layers,
   ChevronDown,
   ChevronUp,
+  FileSpreadsheet,
+  FileText,
+  Calendar,
+  Download,
+  Loader2,
+  CheckCircle,
+  AlertTriangle,
 } from 'lucide-react';
 
 export const DashboardView: React.FC = () => {
@@ -38,8 +51,124 @@ export const DashboardView: React.FC = () => {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilter>('30d');
   const [showRecommendations, setShowRecommendations] = useState(true);
 
-  // Filter complaints based on the selected period
+  // Export date range state (Defaults to last 30 days)
+  const defaultEndDate = new Date().toISOString().split('T')[0];
+  const defaultStartDate = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().split('T')[0];
+  })();
+
+  const [exportStartDate, setExportStartDate] = useState<string>(defaultStartDate);
+  const [exportEndDate, setExportEndDate] = useState<string>(defaultEndDate);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isExportingDocx, setIsExportingDocx] = useState(false);
+  const [exportFeedback, setExportFeedback] = useState<{
+    type: 'success' | 'warning' | 'error';
+    message: string;
+  } | null>(null);
+
+  // Filter complaints based on the selected period for the visual charts
   const filteredComplaints = filterComplaintsByPeriod(complaints, selectedPeriod);
+
+  // Filter complaints strictly based on the custom date range for the file exports
+  const exportFilteredComplaints = filterComplaintsByCustomDateRange(
+    complaints,
+    exportStartDate,
+    exportEndDate
+  );
+
+  const exportStatusCounts = {
+    baru: exportFilteredComplaints.filter((c) => c.status === 'baru').length,
+    diproses: exportFilteredComplaints.filter((c) => c.status === 'diproses').length,
+    selesai: exportFilteredComplaints.filter((c) => c.status === 'selesai').length,
+  };
+
+  const handleExportExcel = () => {
+    if (exportFilteredComplaints.length === 0) {
+      setExportFeedback({
+        type: 'warning',
+        message:
+          'Tidak ada data pengaduan pada periode tanggal yang dipilih. Ubah tanggal mulai atau akhir untuk mengunduh rekap Excel.',
+      });
+      return;
+    }
+
+    try {
+      setIsExportingExcel(true);
+      exportComplaintsToExcel(exportFilteredComplaints, exportStartDate, exportEndDate);
+      setExportFeedback({
+        type: 'success',
+        message: `Rekap pengaduan (.xlsx) berhasil diunduh (${exportFilteredComplaints.length} data pengaduan).`,
+      });
+    } catch (err: any) {
+      setExportFeedback({
+        type: 'error',
+        message: `Gagal mengunduh Excel: ${err?.message || 'Terjadi kendala sistem'}`,
+      });
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
+  const handleExportDocx = async () => {
+    if (exportFilteredComplaints.length === 0) {
+      setExportFeedback({
+        type: 'warning',
+        message:
+          'Tidak ada data pengaduan pada periode tanggal yang dipilih. Ubah tanggal mulai atau akhir untuk menyusun laporan rekomendasi pimpinan.',
+      });
+      return;
+    }
+
+    try {
+      setIsExportingDocx(true);
+      await exportRecommendationToDocx(exportFilteredComplaints, exportStartDate, exportEndDate);
+      setExportFeedback({
+        type: 'success',
+        message: `Laporan rekomendasi untuk pimpinan (.docx) berhasil disusun dan diunduh (${exportFilteredComplaints.length} data laporan).`,
+      });
+    } catch (err: any) {
+      setExportFeedback({
+        type: 'error',
+        message: `Gagal menyusun dokumen Word: ${err?.message || 'Terjadi kendala sistem'}`,
+      });
+    } finally {
+      setIsExportingDocx(false);
+    }
+  };
+
+  const setPresetDateRange = (preset: 'today' | '7d' | '30d' | 'this_month' | 'this_year' | 'all') => {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+
+    if (preset === 'today') {
+      setExportStartDate(todayStr);
+      setExportEndDate(todayStr);
+    } else if (preset === '7d') {
+      const d = new Date();
+      d.setDate(d.getDate() - 7);
+      setExportStartDate(d.toISOString().split('T')[0]);
+      setExportEndDate(todayStr);
+    } else if (preset === '30d') {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      setExportStartDate(d.toISOString().split('T')[0]);
+      setExportEndDate(todayStr);
+    } else if (preset === 'this_month') {
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      setExportStartDate(firstDay.toISOString().split('T')[0]);
+      setExportEndDate(todayStr);
+    } else if (preset === 'this_year') {
+      const firstDayOfYear = new Date(today.getFullYear(), 0, 1);
+      setExportStartDate(firstDayOfYear.toISOString().split('T')[0]);
+      setExportEndDate(todayStr);
+    } else if (preset === 'all') {
+      setExportStartDate('2020-01-01');
+      setExportEndDate(todayStr);
+    }
+    setExportFeedback(null);
+  };
 
   const metrics = computeDashboardMetrics(filteredComplaints);
   const categoryStats = computeCategoryDistribution(filteredComplaints);
@@ -192,6 +321,235 @@ export const DashboardView: React.FC = () => {
           </div>
           <div className="text-2xl font-bold text-rose-900">{metrics.prioritasTinggi}</div>
           <div className="text-[11px] text-rose-600 font-medium">Skor rumus &ge; 75</div>
+        </div>
+      </div>
+
+      {/* Unduh Laporan & Rekapitulasi Pengaduan (Item 1, 2, 3: Filter Periode, Excel .xlsx, Word .docx) */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+        {/* Card Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-blue-50 text-blue-700 rounded-lg">
+                <Download className="w-4 h-4" />
+              </span>
+              <h2 className="text-base font-bold text-slate-900 tracking-tight">
+                Unduh Laporan & Rekapitulasi Pengaduan
+              </h2>
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+                Khusus Petugas
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 pl-8">
+              Pilih tanggal mulai dan tanggal akhir sebagai dasar pengambilan data untuk mengunduh rekap spreadsheet dan dokumen telaah pimpinan.
+            </p>
+          </div>
+
+          {/* Quick Date Presets */}
+          <div className="flex flex-wrap items-center gap-1 sm:self-center pl-8 sm:pl-0">
+            <span className="text-[11px] font-medium text-slate-500 mr-1 flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+              <span>Preset:</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setPresetDateRange('7d')}
+              className="px-2.5 py-1 text-[11px] font-medium rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+            >
+              7 Hari
+            </button>
+            <button
+              type="button"
+              onClick={() => setPresetDateRange('30d')}
+              className="px-2.5 py-1 text-[11px] font-medium rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+            >
+              30 Hari
+            </button>
+            <button
+              type="button"
+              onClick={() => setPresetDateRange('this_month')}
+              className="px-2.5 py-1 text-[11px] font-medium rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+            >
+              Bulan Ini
+            </button>
+            <button
+              type="button"
+              onClick={() => setPresetDateRange('this_year')}
+              className="px-2.5 py-1 text-[11px] font-medium rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+            >
+              Tahun Ini
+            </button>
+            <button
+              type="button"
+              onClick={() => setPresetDateRange('all')}
+              className="px-2.5 py-1 text-[11px] font-medium rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+            >
+              Semua Data
+            </button>
+          </div>
+        </div>
+
+        {/* Date Filter Inputs & Realtime Match Count */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 items-end bg-slate-50 p-4 rounded-xl border border-slate-200">
+          <div className="md:col-span-3 space-y-1">
+            <label className="text-xs font-semibold text-slate-700 block">
+              Tanggal Mulai
+            </label>
+            <input
+              type="date"
+              value={exportStartDate}
+              onChange={(e) => {
+                setExportStartDate(e.target.value);
+                setExportFeedback(null);
+              }}
+              className="w-full text-xs font-mono bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          <div className="md:col-span-3 space-y-1">
+            <label className="text-xs font-semibold text-slate-700 block">
+              Tanggal Akhir
+            </label>
+            <input
+              type="date"
+              value={exportEndDate}
+              onChange={(e) => {
+                setExportEndDate(e.target.value);
+                setExportFeedback(null);
+              }}
+              className="w-full text-xs font-mono bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          {/* Real-time Match Indicator */}
+          <div className="md:col-span-6 bg-white p-2.5 rounded-lg border border-slate-200 flex flex-col justify-center gap-1">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-slate-700">
+                Data Sesuai Periode:
+              </span>
+              <span className="font-bold text-blue-900 font-mono text-sm">
+                {exportFilteredComplaints.length} Laporan
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded font-medium">
+                Baru: {exportStatusCounts.baru}
+              </span>
+              <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded font-medium">
+                Diproses: {exportStatusCounts.diproses}
+              </span>
+              <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded font-medium">
+                Selesai: {exportStatusCounts.selesai}
+              </span>
+              <span className="text-slate-400 font-mono text-[10px] ml-auto">
+                {formatIndonesianDate(exportStartDate)} s.d. {formatIndonesianDate(exportEndDate)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Feedback Alert if any */}
+        {exportFeedback && (
+          <div
+            className={`p-3 rounded-lg text-xs flex items-center justify-between gap-2 ${
+              exportFeedback.type === 'success'
+                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                : exportFeedback.type === 'warning'
+                ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                : 'bg-rose-50 text-rose-800 border border-rose-200'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {exportFeedback.type === 'success' ? (
+                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              )}
+              <span>{exportFeedback.message}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setExportFeedback(null)}
+              className="text-slate-400 hover:text-slate-700 font-bold px-1"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        {/* Action Buttons: Excel (.xlsx) and Word (.docx) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+          {/* Button 1: Excel .xlsx */}
+          <div className="border border-emerald-200 bg-emerald-50/30 hover:bg-emerald-50/60 rounded-xl p-4 transition-colors flex flex-col justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-emerald-800">
+                <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                <h3 className="text-sm font-bold">Rekap Pengaduan (.xlsx)</h3>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Format spreadsheet resmi memuat: Tanggal Pengaduan, Nama Pelapor, Uraian Pengaduan, Respons Petugas, Tanggal Selesai, Status, dan Durasi Penyelesaian.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              disabled={isExportingExcel || exportFilteredComplaints.length === 0}
+              className={`w-full py-2.5 px-4 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs ${
+                exportFilteredComplaints.length === 0
+                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
+                  : 'bg-emerald-700 hover:bg-emerald-800 text-white'
+              }`}
+            >
+              {isExportingExcel ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Menyiapkan Excel...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span>Unduh Rekap Pengaduan (.xlsx)</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Button 2: Word .docx */}
+          <div className="border border-blue-200 bg-blue-50/30 hover:bg-blue-50/60 rounded-xl p-4 transition-colors flex flex-col justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-blue-900">
+                <FileText className="w-5 h-5 text-blue-700" />
+                <h3 className="text-sm font-bold">Laporan Rekomendasi untuk Pimpinan (.docx)</h3>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Naskah dinas formal untuk Kepala Dinas memuat resume kategori, rekap status, pola masalah berulang, skor prioritas, dan saran tindak lanjut perbaikan.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleExportDocx}
+              disabled={isExportingDocx || exportFilteredComplaints.length === 0}
+              className={`w-full py-2.5 px-4 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs ${
+                exportFilteredComplaints.length === 0
+                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
+                  : 'bg-blue-700 hover:bg-blue-800 text-white'
+              }`}
+            >
+              {isExportingDocx ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Menyusun Dokumen Word...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span>Unduh Laporan Rekomendasi (.docx)</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

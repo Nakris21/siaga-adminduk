@@ -16,10 +16,10 @@ import { ReferencesView } from './views/ReferencesView';
 import { LoginView } from './views/LoginView';
 import { TechnicalSpecView } from './views/TechnicalSpecView';
 import { PublicTicketCheckView } from './views/PublicTicketCheckView';
-import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 const MainContent: React.FC = () => {
-  const { activeTab, toast, isLoading, isAuthChecking } = useApp();
+  const { activeTab, toast, hideToast, isLoading, isAuthChecking } = useApp();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
 
@@ -42,22 +42,30 @@ const MainContent: React.FC = () => {
         {/* Top Header with Hamburger and Page Context */}
         <Header onOpenMobileMenu={() => setIsMobileOpen(true)} />
 
-        {/* Global Toast Notification */}
+        {/* Global Toast Notification (Z-[9999] so it persists visibly across modal closures & redirects) */}
         {toast && (
-          <div className="fixed bottom-5 right-5 z-50 max-w-sm w-full animate-fade-in pointer-events-none">
+          <div className="fixed bottom-5 right-5 z-[9999] max-w-sm w-full animate-fade-in pointer-events-none">
             <div
-              className={`p-3.5 rounded-lg border shadow-lg flex items-start gap-2.5 text-xs pointer-events-auto ${
+              className={`p-3.5 rounded-xl border shadow-xl flex items-start gap-2.5 text-xs pointer-events-auto backdrop-blur-xs transition-all ${
                 toast.type === 'success'
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                  ? 'bg-emerald-50/95 border-emerald-400 text-emerald-950 font-medium'
                   : toast.type === 'error'
-                  ? 'bg-rose-50 border-rose-300 text-rose-900'
-                  : 'bg-blue-50 border-blue-300 text-blue-900'
+                  ? 'bg-rose-50/95 border-rose-400 text-rose-950 font-medium'
+                  : 'bg-blue-50/95 border-blue-400 text-blue-950 font-medium'
               }`}
             >
               {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />}
               {toast.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />}
               {toast.type === 'info' && <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />}
               <div className="flex-1 leading-snug">{toast.text}</div>
+              <button
+                type="button"
+                onClick={() => hideToast()}
+                className="text-slate-400 hover:text-slate-700 p-0.5 -mr-1 -mt-0.5 cursor-pointer rounded"
+                title="Tutup notifikasi"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
         )}
