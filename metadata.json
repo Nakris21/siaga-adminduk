@@ -1,0 +1,6 @@
+{
+  "name": "SIAGA Adminduk",
+  "description": "Sistem Informasi Asistensi dan Pengaduan Administrasi Kependudukan untuk konsultasi berbasis referensi resmi, penerbitan nomor tiket pengaduan, dan dashboard penanganan.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

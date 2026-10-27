@@ -1,0 +1,84 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Deny all by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isBootstrappedAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'khrisna.chanel@gmail.com'
+      );
+    }
+
+    function isStaff() {
+      return isSignedIn() && (
+        isBootstrappedAdmin() ||
+        exists(/databases/$(database)/documents/staff/$(request.auth.uid))
+      );
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        isBootstrappedAdmin() ||
+        (exists(/databases/$(database)/documents/staff/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    // Connection ping test endpoint
+    match /test/{testId} {
+      allow read: if true;
+    }
+
+    // Staff accounts collection
+    match /staff/{staffId} {
+      allow get: if isSignedIn() && (request.auth.uid == staffId || isAdmin());
+      allow list: if isAdmin();
+      // Allow self-registration during initial login or by existing admins
+      allow create: if isSignedIn() && (
+        request.auth.uid == staffId || isAdmin()
+      );
+      // Allow users to update their own non-critical profile info, full update for admins
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (request.auth.uid == staffId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'email']))
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Complaints collection
+    match /complaints/{complaintId} {
+      // Public citizens can create complaints
+      allow create: if request.resource.data.keys().hasAll(['ticket_number', 'category', 'description', 'name', 'phone', 'status', 'created_at'])
+                    && request.resource.data.status == 'baru'
+                    && request.resource.data.description.size() >= 20;
+
+      // Only authorized staff can view list or read complaints
+      allow read: if isStaff();
+
+      // Only staff can update status and write responses
+      allow update: if isStaff();
+
+      // Only admins can delete complaints
+      allow delete: if isAdmin();
+    }
+
+    // References collection
+    match /references/{referenceId} {
+      // Public can read references for AI consultation
+      allow read: if true;
+
+      // Only authorized staff can manage references
+      allow write: if isStaff();
+    }
+  }
+}

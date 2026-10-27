@@ -1,0 +1,170 @@
+{
+  "entities": {
+    "Staff": {
+      "title": "Staff",
+      "description": "Authorized Dindukcapil staff and administrator accounts",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Official email address of the staff member"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 100,
+          "description": "Full name of the officer"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "petugas"],
+          "description": "Access control role"
+        },
+        "unit": {
+          "type": "string",
+          "description": "Department or work unit in Dindukcapil"
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether the staff account is currently authorized"
+        },
+        "created_at": {
+          "type": "string",
+          "description": "Account registration timestamp"
+        }
+      },
+      "required": ["email", "name", "role", "active"]
+    },
+    "Complaint": {
+      "title": "Complaint",
+      "description": "Citizen complaints regarding population administration services",
+      "type": "object",
+      "properties": {
+        "ticket_number": {
+          "type": "string",
+          "description": "Unique ticket number format PGD-YYYYMMDD-XXXXXX"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "KTP-el",
+            "Kartu Keluarga",
+            "Akta Kelahiran",
+            "Akta Kematian",
+            "IKD",
+            "Pindah Datang",
+            "Lainnya"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 3000
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "phone": {
+          "type": "string",
+          "minLength": 9,
+          "maxLength": 20
+        },
+        "email": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["baru", "diproses", "selesai"]
+        },
+        "response": {
+          "type": "string"
+        },
+        "response_updated_at": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "number"
+        },
+        "service_impact": {
+          "type": "number"
+        },
+        "priority_score": {
+          "type": "number"
+        },
+        "priority_level": {
+          "type": "string",
+          "enum": ["tinggi", "sedang", "rendah"]
+        },
+        "created_at": {
+          "type": "string"
+        }
+      },
+      "required": ["ticket_number", "category", "description", "name", "phone", "status", "created_at"]
+    },
+    "ReferenceDoc": {
+      "title": "ReferenceDoc",
+      "description": "Official population administration regulations and service standards",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 250
+        },
+        "document_type": {
+          "type": "string",
+          "enum": ["peraturan", "standar_pelayanan", "sop", "faq_resmi", "lainnya"]
+        },
+        "document_number": {
+          "type": "string"
+        },
+        "document_date": {
+          "type": "string"
+        },
+        "year": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "source_url": {
+          "type": "string"
+        },
+        "section": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 10
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "verified_by": {
+          "type": "string"
+        }
+      },
+      "required": ["title", "document_type", "text", "active", "updated_at"]
+    }
+  },
+  "firestore": {
+    "/staff/{staffId}": {
+      "schema": { "$ref": "#/entities/Staff" },
+      "description": "Collection of authorized Dindukcapil staff"
+    },
+    "/complaints/{complaintId}": {
+      "schema": { "$ref": "#/entities/Complaint" },
+      "description": "Collection of citizen complaints"
+    },
+    "/references/{referenceId}": {
+      "schema": { "$ref": "#/entities/ReferenceDoc" },
+      "description": "Collection of official reference documents"
+    }
+  }
+}
